@@ -1,16 +1,18 @@
 #!/bin/bash
 
-if [ -z "${SEARCH_PATTERN}" ]; then
-  echo "please set SEARCH_PATTERN environment variable with pattern to delete"
+if [ -z "$1" ]; then
+  echo "provide search pattern of environment to search for"
   exit
 fi
 
-function deleteItems() {
-  items=("$@")
+SEARCH_PATTERN=$1
 
-  echo "Initiated deletion for all items."
+function batchDelete() {
+  roles=("$@")
 
-  for role in "${items[@]}"; do
+  echo "Initiated deletion."
+
+  for role in "${roles[@]}"; do
     echo "Deleteing role $role"
     role_attached_policies=$(aws iam list-attached-role-policies --role-name "$role" --query 'AttachedPolicies[*].PolicyArn' --output text)
     for policy_arn in $role_attached_policies; do
@@ -27,25 +29,25 @@ function deleteItems() {
   echo "Deletion completed."
 }
 
-function action() {
-  items=$(aws iam list-roles \
+function init() {
+  roles=$(aws iam list-roles \
     --max-items 5000 \
     --query "Roles[*].[RoleName]" 2>/dev/null | jq ".[][]|select(.|contains(\"${SEARCH_PATTERN}\"))" | xargs)
 
-  IFS=" " read -r -a items <<<"$items"
+  IFS=" " read -r -a roles <<<"$roles"
 
-  if [ ${#items[@]} -eq 0 ]; then
-    echo "No items found. Exiting."
+  if [ ${#roles[@]} -eq 0 ]; then
+    echo "No roles found. Exiting."
     exit 0
   fi
 
-  echo "Found: ${#items[@]}"
+  echo "Found: ${#roles[@]}"
 
   while true; do
-    read -p "Do you want to proceed deletion?(y/n): " yn
+    read -r -p "Do you want to proceed deletion?(y/n): " yn
     case $yn in
     [Yy]*)
-      deleteItems "${items[@]}"
+      batchDelete "${roles[@]}"
       break
       ;;
     [Nn]*) exit ;;
@@ -54,4 +56,4 @@ function action() {
   done
 }
 
-action
+init

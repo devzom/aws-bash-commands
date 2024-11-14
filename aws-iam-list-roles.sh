@@ -1,25 +1,21 @@
 #!/bin/bash
-if [ -z "${SEARCH_PATTERN}" ]; then
-  echo "please set SEARCH_PATTERN environment variable with pattern to delete"
+if [ -z "$1" ]; then
+  echo "provide SEARCH_PATTERN of environment to search for"
   exit
 fi
 
-function action() {
-  echo "############################"
-  echo "Read roles from AWS IAM"
-  echo "############################"
-  items=$(aws iam list-roles \
-    --max-items 5000 \
-    --query "Roles[*].[RoleName]" 2>/dev/null | jq ".[][]|select(.|contains(\"${SEARCH_PATTERN}\"))" | xargs)
+echo "############################"
+echo "Search for roles from AWS IAM $1"
+echo "############################"
+items=$(aws iam list-roles \
+  --max-items 5000 \
+  --query "Roles[*].[RoleName]" 2>/dev/null | jq ".[][]|select(.|contains(\"$1\"))" | xargs)
 
-  IFS=" " read -r -a items <<<"$items"
+IFS=" " read -r -a items <<<"$items"
 
-  count=0
-  for i in "${items[@]}"; do
-    count=$count+1
-    echo "${i}"
-  done
-  echo "Found: ${#items[@]}"
-}
-
-action
+count=0
+for i in "${items[@]}"; do
+  count=$count+1
+  echo "${i}"
+done
+echo "Found: ${#items[@]}"
