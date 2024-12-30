@@ -1,8 +1,6 @@
 #!/bin/bash
 
-# Function to initialize the deletion process
 function init() {
-  # Fetch roles matching the search pattern
   roles=$(aws iam list-roles \
     --max-items 5000 \
     --query "Roles[*].[RoleName]" 2>/dev/null | jq -r ".[][] | select(. | contains(\"${SEARCH_PATTERN}\"))" | xargs)
@@ -37,44 +35,47 @@ function init() {
   done
 }
 
-# Function to delete roles
 function batchDelete() {
   roles=("$@")
 
   echo "Initiated deletion."
 
   for role in "${roles[@]}"; do
-    echo "Deleting role $role"
+    (
+      echo "Deleting: $role"
 
-    # Detach attached policies
-    role_attached_policies=$(aws iam list-attached-role-policies --role-name "$role" --query 'AttachedPolicies[*].PolicyArn' --output text)
-    for policy_arn in $role_attached_policies; do
-      aws iam detach-role-policy --role-name "$role" --policy-arn "$policy_arn" || {
-        echo "Failed to detach policy $policy_arn from role $role"
+      # Detach attached policies
+      role_attached_policies=$(aws iam list-attached-role-policies --role-name "$role" --query 'AttachedPolicies[*].PolicyArn' --output text)
+      for policy_arn in $role_attached_policies; do
+        aws iam detach-role-policy --role-name "$role" --policy-arn "$policy_arn" || {
+          echo "Failed to detach policy $policy_arn from role $role"
+          continue
+        }
+      done
+
+      # Delete inline policies
+      role_inline_policies=$(aws iam list-role-policies --role-name "$role" --query 'PolicyNames' --output text)
+      for policy_name in $role_inline_policies; do
+        aws iam delete-role-policy --role-name "$role" --policy-name "$policy_name" || {
+          echo "Failed to delete inline policy $policy_name from role $role"
+          continue
+        }
+      done
+
+      # Delete the role
+      aws iam delete-role --role-name "$role" || {
+        echo "Failed to delete role $role"
         continue
       }
-    done
-
-    # Delete inline policies
-    role_inline_policies=$(aws iam list-role-policies --role-name "$role" --query 'PolicyNames' --output text)
-    for policy_name in $role_inline_policies; do
-      aws iam delete-role-policy --role-name "$role" --policy-name "$policy_name" || {
-        echo "Failed to delete inline policy $policy_name from role $role"
-        continue
-      }
-    done
-
-    # Delete the role
-    aws iam delete-role --role-name "$role" || {
-      echo "Failed to delete role $role"
-      continue
-    }
+    ) &
+    sleep 3  # Add delay between concurrent requests
   done
+
+  wait
 
   echo "Deletion completed."
 }
 
-# Check if search pattern is provided
 if [ -z "$1" ]; then
   echo "Provide search pattern of environment to search for."
   exit 1
@@ -82,5 +83,4 @@ fi
 
 SEARCH_PATTERN=$1
 
-# Start the initialization process
 init
