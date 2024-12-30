@@ -1,6 +1,6 @@
 #!/bin/bash
 
-roles=("farmer-exp-sae1-e2e-7086-sort-s-get-p-earnings-y-role")
+roles=("farmer-exp-sae1-e2e-3729-bff-ingestion-dealers")
 
 for role in "${roles[@]}"; do
   echo "Deleteing role $role"
